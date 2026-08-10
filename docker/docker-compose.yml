@@ -1,0 +1,138 @@
+# One command runs the whole platform: four services + MySQL + Kafka + Zipkin.
+#
+#   docker compose -f docker/docker-compose.yml up --build
+#   docker compose -f docker/docker-compose.yml down        # add -v to wipe the databases too
+#
+# This stack creates its OWN MySQL and Kafka on a private network. It does not touch the standalone
+# `mysql-dev`, `kafka` or `zipkin` containers that kafka-up.sh / zipkin-up.sh use for the manual path,
+# and it publishes neither database nor broker — so both setups can coexist. The one collision is
+# Zipkin on :9411; stop the standalone `zipkin` container before bringing this up.
+#
+# Only the gateway (:8090), the Eureka dashboard (:8761) and Zipkin (:9411) are published. booking and
+# payment have no `ports` entry at all, so nothing outside this network can reach them. Since the JWT
+# layer was removed that isolation is the ONLY thing keeping them private — neither authenticates
+# callers any more, so anything on this network has full access to both.
+#
+# Every address is passed as the ${VAR} that application.yml already reads. "localhost" is wrong inside
+# a container — it means "this container" — so each service is addressed by its compose service name.
+
+name: trip-booking-platform
+
+services:
+  mysql:
+    image: mysql:8
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./mysql-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      # The services below wait on this: Hibernate cannot start against a booting MySQL.
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-prootpassword"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  kafka:
+    image: apache/kafka:latest
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      # Advertised as `kafka`, the compose service name — this is what clients are told to dial back on.
+      # "localhost" here is the classic containerised-Kafka failure: producers connect, then get handed
+      # an address that points at themselves.
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    healthcheck:
+      test: ["CMD", "/opt/kafka/bin/kafka-broker-api-versions.sh", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+
+  zipkin:
+    image: openzipkin/zipkin:latest
+    ports:
+      - "9411:9411"
+
+  # Everyone registers here, so it starts first and the others wait on its health.
+  discovery-service:
+    build:
+      context: ..
+      dockerfile: docker/discovery-service.Dockerfile
+    ports:
+      - "8761:8761"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8761/actuator/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  booking-service:
+    build:
+      context: ..
+      dockerfile: docker/booking-service.Dockerfile
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/booking
+      DB_USERNAME: booking
+      DB_PASSWORD: booking
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      EUREKA_SERVER_URL: http://discovery-service:8761/eureka/
+      # The name other services dial to reach this one. Must be the compose service name.
+      EUREKA_HOSTNAME: booking-service
+      ZIPKIN_ENDPOINT: http://zipkin:9411/api/v2/spans
+    depends_on:
+      mysql:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      discovery-service:
+        condition: service_healthy
+
+  payment-service:
+    build:
+      context: ..
+      dockerfile: docker/payment-service.Dockerfile
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/payment
+      DB_USERNAME: payment
+      DB_PASSWORD: payment
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      EUREKA_SERVER_URL: http://discovery-service:8761/eureka/
+      EUREKA_HOSTNAME: payment-service
+      ZIPKIN_ENDPOINT: http://zipkin:9411/api/v2/spans
+    depends_on:
+      mysql:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      discovery-service:
+        condition: service_healthy
+
+  # The only way in. Routes by service-id, resolved through Eureka.
+  gateway-service:
+    build:
+      context: ..
+      dockerfile: docker/gateway-service.Dockerfile
+    ports:
+      - "8090:8090"
+    environment:
+      EUREKA_SERVER_URL: http://discovery-service:8761/eureka/
+      EUREKA_HOSTNAME: gateway-service
+      ZIPKIN_ENDPOINT: http://zipkin:9411/api/v2/spans
+    depends_on:
+      discovery-service:
+        condition: service_healthy
+      booking-service:
+        condition: service_started
+      payment-service:
+        condition: service_started
+
+volumes:
+  mysql-data:

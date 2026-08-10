@@ -1,0 +1,20 @@
+spring:
+  application:
+    name: discovery-service
+
+server:
+  port: 8761
+
+eureka:
+  client:
+    # A Eureka server is normally also a Eureka client so registries can replicate to each other. With a
+    # single instance, registering with itself and fetching its own registry is pure overhead.
+    register-with-eureka: false
+    fetch-registry: false
+  # Fast heartbeat/eviction timings for local dev, so a restarted instance reappears in seconds. A real
+  # deployment leaves these at their much longer defaults.
+  instance:
+    lease-renewal-interval-in-seconds: 5
+    lease-expiration-duration-in-seconds: 10
+  server:
+    eviction-interval-timer-in-ms: 2000

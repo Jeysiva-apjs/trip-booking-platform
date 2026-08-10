@@ -1,0 +1,97 @@
+spring:
+  application:
+    # Also the Eureka service-id ("BOOKING-SERVICE").
+    name: booking-service
+
+  # Every address below is written as ${VAR:default}. The default is the local-dev value, so running this
+  # from an IDE or `./mvnw spring-boot:run` still works with nothing set; the variable is what Docker (and
+  # later AWS) overrides. "localhost" is correct on a laptop, where everything really is one machine — but
+  # inside a container it means "this container", so each service would end up talking to itself.
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/booking}
+    username: ${DB_USERNAME:booking}
+    password: ${DB_PASSWORD:booking}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      pool-name: booking-hikari
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+
+  # Booking publishes PaymentRequested and consumes PaymentResult.
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      # Boot 3 ships Jackson 2, so this is JsonSerializer (the JacksonJsonSerializer name is the
+      # Jackson 3 / spring-kafka 4 variant that comes with Boot 4).
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        # Don't stamp our class name on the message — the payment service has its own event classes.
+        spring.json.add.type.headers: false
+    consumer:
+      group-id: booking
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        # Deserialize every payment-results message into our own event class, ignoring the sender's type.
+        spring.json.value.default.type: com.jeysiva.booking.saga.PaymentResultEvent
+        spring.json.trusted.packages: "com.jeysiva.booking.saga"
+    # Trace context can't ride a ThreadLocal across a Kafka hop. With this on, Spring Kafka puts the
+    # trace/span id in the record headers on send and reads them back on receive, continuing one trace.
+    template:
+      observation-enabled: true
+    listener:
+      observation-enabled: true
+
+# Register with the Eureka server in discovery-service, heartbeating fast so a restarted instance shows
+# up in seconds.
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_SERVER_URL:http://localhost:8761/eureka/}
+  instance:
+    lease-renewal-interval-in-seconds: 5
+    lease-expiration-duration-in-seconds: 10   # fast eviction of stale entries — local-dev tuning, not prod
+    # The name this service registers under, and therefore the name other services dial to reach it.
+    # On a laptop that's "localhost"; under Docker it must be the container's name on the compose network,
+    # because "localhost" inside a container points back at that same container. Getting this wrong is the
+    # classic containerised-Eureka failure: everything registers, nothing can call anything.
+    hostname: ${EUREKA_HOSTNAME:localhost}
+    prefer-ip-address: false
+
+booking:
+  # How reserving a contested seat is protected: OPTIMISTIC (@Version) or PESSIMISTIC (SELECT ... FOR UPDATE).
+  locking-strategy: OPTIMISTIC
+  # Raise this above the payment service's fail-threshold to make payment fail and watch the saga compensate.
+  trip-price: 250.00
+
+server:
+  port: 8080
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+# Distributed tracing. Micrometer Observation creates the spans, the OTel bridge on the classpath turns
+# them into OpenTelemetry spans, and this says where to send them and how many to keep.
+management:
+  tracing:
+    sampling:
+      # 100% in dev so every request produces a trace to look at. A real deployment samples a small
+      # fraction — tracing every request in production is expensive at volume.
+      probability: 1.0
+  zipkin:
+    tracing:
+      endpoint: ${ZIPKIN_ENDPOINT:http://localhost:9411/api/v2/spans}
+
+# So a trace/span id is visible in this service's own console log, next to the line it belongs to — without
+# this, correlating "which log line was part of which trace" means cross-referencing Zipkin by timestamp.
+logging:
+  pattern:
+    level: "%5p [${spring.application.name},%X{traceId:-},%X{spanId:-}]"

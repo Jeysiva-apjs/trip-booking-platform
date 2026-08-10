@@ -1,0 +1,81 @@
+spring:
+  application:
+    name: payment-service
+
+  # The payment service's OWN database. Note the separate schema and separate credentials from the booking
+  # service — neither can read the other's tables, which is what keeps them independently deployable.
+  # ${VAR:default} — the default is the local-dev value, the variable is what Docker/AWS overrides.
+  # See booking-service's application.yml for why "localhost" cannot survive containerisation.
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/payment}
+    username: ${DB_USERNAME:payment}
+    password: ${DB_PASSWORD:payment}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      pool-name: payment-hikari
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false        # quieter than the booking service; flip on when debugging SQL
+
+  # Payment consumes PaymentRequested and publishes PaymentResult.
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false
+    consumer:
+      group-id: payment
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.value.default.type: com.jeysiva.payment.PaymentRequestedEvent
+        spring.json.trusted.packages: "com.jeysiva.payment"
+    # Lets this service's consumer span (and the PaymentResult it publishes) join the same trace as the
+    # original HTTP request. See booking-service's application.yml.
+    template:
+      observation-enabled: true
+    listener:
+      observation-enabled: true
+
+server:
+  port: 8081        # booking-service runs on 8080; this is the separate process it calls
+
+logging:
+  level:
+    com.jeysiva.payment: DEBUG
+  pattern:
+    level: "%5p [${spring.application.name},%X{traceId:-},%X{spanId:-}]"
+
+# Distributed tracing (OpenTelemetry -> Zipkin). See booking-service's application.yml for what each
+# property does.
+management:
+  tracing:
+    sampling:
+      probability: 1.0
+  zipkin:
+    tracing:
+      endpoint: ${ZIPKIN_ENDPOINT:http://localhost:9411/api/v2/spans}
+
+# Register with the Eureka server in discovery-service, heartbeating fast so a restarted instance shows
+# up in seconds.
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_SERVER_URL:http://localhost:8761/eureka/}
+  instance:
+    lease-renewal-interval-in-seconds: 5
+    lease-expiration-duration-in-seconds: 10   # fast eviction of stale entries — local-dev tuning, not prod
+    # Pin the hostname other services connect back to. Unpinned, each instance registers under whatever
+    # InetAddress resolution returns, which varies between "localhost" and an unreachable LAN IP depending
+    # on network state. All services on one machine must agree on a single reachable name — and under
+    # Docker that name is the container's, not "localhost". See booking-service's application.yml.
+    hostname: ${EUREKA_HOSTNAME:localhost}
+    prefer-ip-address: false

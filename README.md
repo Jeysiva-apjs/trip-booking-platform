@@ -4,11 +4,16 @@ A **Trip = one flight seat + one hotel room**, booked together as a single all-o
 
 ![Java](https://img.shields.io/badge/Java-17-007396) ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5-6DB33F) ![Spring Cloud](https://img.shields.io/badge/Spring%20Cloud-2025.0-6DB33F) ![Kafka](https://img.shields.io/badge/Kafka-choreography%20saga-231F20) ![MySQL](https://img.shields.io/badge/MySQL-8-4479A1)
 
-A Spring Boot microservices platform built around one deliberately awkward requirement — booking two scarce resources at once, with payment in another service. That constraint is what forces the interesting parts:
+---
 
-- **Contested seats** → optimistic locking (`@Version`), with pessimistic (`SELECT … FOR UPDATE`) switchable and benchmarked against it
-- **Two resources + remote payment** → a Kafka **choreography saga** with compensating actions, not a local transaction
-- **Slow, fallible payment** → moved out of the booking transaction; `202 Accepted` immediately, settles asynchronously
+## Key Features
+
+- Built a microservices-based trip booking platform using **Java 17**, **Spring Boot 3**, **MySQL**, and **Apache Kafka**.
+- Implemented **atomic flight + hotel booking**, ensuring either both the flight seat and hotel room are reserved or neither is.
+- Used **optimistic locking** with `@Version` to prevent concurrent bookings for the same flight seat, returning **HTTP 409 Conflict** when a booking conflict occurs.
+- Implemented payment processing using a **Kafka-based Saga pattern**, automatically releasing the reserved flight seat and hotel room when payment fails.
+- Added **Spring Cloud Gateway** and **Netflix Eureka** for API routing and service discovery.
+- Integrated **OpenTelemetry** with **Zipkin** for distributed tracing and observability.
 
 ---
 

@@ -1,6 +1,6 @@
 # Trip Booking Platform
 
-> A **Trip = one flight seat + one hotel room**, booked together as a single all-or-nothing operation.
+A **Trip = one flight seat + one hotel room**, booked together as a single all-or-nothing operation.
 
 ![Java](https://img.shields.io/badge/Java-17-007396) ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5-6DB33F) ![Spring Cloud](https://img.shields.io/badge/Spring%20Cloud-2025.0-6DB33F) ![Kafka](https://img.shields.io/badge/Kafka-choreography%20saga-231F20) ![MySQL](https://img.shields.io/badge/MySQL-8-4479A1)
 

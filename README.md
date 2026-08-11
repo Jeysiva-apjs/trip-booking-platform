@@ -9,10 +9,8 @@ A **Trip = one flight seat + one hotel room**, booked together as a single all-o
 
 - Built a microservices-based trip booking platform using **Java 17**, **Spring Boot 3**, **MySQL**, and **Apache Kafka**.
 - Implemented **atomic flight + hotel booking**, ensuring either both the flight seat and hotel room are reserved or neither is.
-- Used **optimistic locking** with `@Version` to prevent concurrent bookings for the same flight seat, returning **HTTP 409 Conflict** w
-hen a booking conflict occurs.
-- Implemented payment processing using a **Kafka-based Saga pattern**, automatically releasing the reserved flight seat and hotel room w
-hen payment fails.
+- Used **optimistic locking** with `@Version` to prevent concurrent bookings for the same flight seat, returning **HTTP 409 Conflict** when a booking conflict occurs.
+- Implemented payment processing using a **Kafka-based Saga pattern**, automatically releasing the reserved flight seat and hotel room when payment fails.
 - Added **Spring Cloud Gateway** and **Netflix Eureka** for API routing and service discovery.
 - Integrated **OpenTelemetry** with **Zipkin** for distributed tracing and observability.
 

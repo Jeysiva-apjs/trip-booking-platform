@@ -4,7 +4,6 @@ A **Trip = one flight seat + one hotel room**, booked together as a single all-o
 
 ![Java](https://img.shields.io/badge/Java-17-007396) ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5-6DB33F) ![Spring Cloud](https://img.shields.io/badge/Spring%20Cloud-2025.0-6DB33F) ![Kafka](https://img.shields.io/badge/Kafka-choreography%20saga-231F20) ![MySQL](https://img.shields.io/badge/MySQL-8-4479A1)
 
----
 
 ## Key Features
 
@@ -15,13 +14,11 @@ A **Trip = one flight seat + one hotel room**, booked together as a single all-o
 - Added **Spring Cloud Gateway** and **Netflix Eureka** for API routing and service discovery.
 - Integrated **OpenTelemetry** with **Zipkin** for distributed tracing and observability.
 
----
 
 ## Tech stack
 
 **Java 17** · **Spring Boot 3.5** · **Spring Cloud 2025.0** (Eureka, Gateway MVC) · **MySQL 8** with Spring Data JPA · **Apache Kafka** · **Micrometer + OpenTelemetry → Zipkin** · **springdoc-openapi** · Maven multi-module
 
----
 
 ## Architecture
 
@@ -58,7 +55,6 @@ A **Trip = one flight seat + one hotel room**, booked together as a single all-o
 
 Each service has its own schema and credentials — neither can read the other's tables.
 
----
 
 ## How a booking works
 
@@ -79,28 +75,6 @@ POST /api/trips {seatId, roomId, userId}
 
 Payment never runs inside the booking transaction, so a slow or failed charge can't hold database rows open. The result listener is **idempotent** — a redelivered event finds the trip already settled and does nothing.
 
----
-
-## Security
-
-**There is none.** Every endpoint is open to anyone who can reach the service — no authentication, no
-authorization, no roles enforced. The gateway routes; it does not check callers.
-
-The consequence worth knowing before this goes anywhere real:
-
-```
-POST /api/trips {seatId, roomId, userId}
-                                 └── client-supplied, unverified
-```
-
-A trip's owner is whatever `userId` the request body carries. Nothing checks that the caller is that
-user, or that the user exists. `GET /api/trips` returns every trip in the database; `?userId=` narrows
-it, but only as a convenience — anyone can read or cancel anyone's trip.
-
-`User.role` (USER / ADMIN) is still stored on the account, but nothing reads it. It records intent for
-whatever authorization gets built later.
-
----
 
 ## API
 
@@ -129,7 +103,6 @@ curl -X POST http://localhost:8090/api/trips \
 curl http://localhost:8090/api/trips?userId=2
 ```
 
----
 
 ## Project structure
 
@@ -151,7 +124,6 @@ trip-booking-platform/       root aggregator pom
 
 Packaged **by feature, not by layer** — a change to "how trips book" touches one folder, not five.
 
----
 
 ## Running it
 
@@ -174,12 +146,4 @@ Or run it by hand — needs JDK 17, MySQL 8, Kafka and Zipkin (`./kafka-up.sh`, 
 ./mvnw -pl gateway-service   spring-boot:run   # 8090
 ```
 
-Every address in `application.yml` is written as `${VAR:default}`, where the default is the local value — so this path needs nothing set, and a different environment overrides the variables.
 
-An empty database is seeded with a flight, a hotel, and two accounts — `admin` and `demo`. The startup log prints their ids; pass one as `userId` when booking.
-
-Swagger <http://localhost:8080/swagger-ui.html> · Eureka <http://localhost:8761> · Zipkin <http://localhost:9411> · Postman collection in [`postman/`](postman/)
-
----
-
-Setup details, the phase-by-phase build log and the reasoning behind each design decision: **[DEVELOPMENT.md](DEVELOPMENT.md)**

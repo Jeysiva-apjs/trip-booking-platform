@@ -34,7 +34,8 @@ spring:
         # Don't stamp our class name on the message — the payment service has its own event classes.
         spring.json.add.type.headers: false
     consumer:
-      group-id: booking
+      # No group-id here: each @KafkaListener declares its own, and the annotation overrides this
+      # property anyway. One place to change it.
       auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer

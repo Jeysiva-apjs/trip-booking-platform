@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<parent>
+		<groupId>org.springframework.boot</groupId>
+		<artifactId>spring-boot-starter-parent</artifactId>
+		<version>3.5.16</version>
+		<relativePath/> <!-- lookup parent from repository -->
+	</parent>
+	<groupId>com.jeysiva</groupId>
+	<artifactId>gateway-service</artifactId>
+	<version>0.0.1-SNAPSHOT</version>
+	<name>gateway-service</name>
+	<description>API Gateway — single entry point, routes to services by Eureka service-id</description>
+
+	<properties>
+		<java.version>17</java.version>
+		<spring-cloud.version>2025.0.3</spring-cloud.version>
+	</properties>
+
+	<!-- No shared parent across modules, so the Spring Cloud BOM is imported per-service, same as
+	     discovery-service / booking-service / payment-service. -->
+	<dependencyManagement>
+		<dependencies>
+			<dependency>
+				<groupId>org.springframework.cloud</groupId>
+				<artifactId>spring-cloud-dependencies</artifactId>
+				<version>${spring-cloud.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
+
+	<dependencies>
+		<!-- The MVC-flavored Gateway (servlet stack), not the classic reactive one — every other service
+		     here is spring-boot-starter-web, and there's no reason to pull in WebFlux/Reactor just for
+		     routing. On the Spring Cloud 2025.0.x train this starter is still named ...-gateway-mvc; the
+		     ...-gateway-server-webmvc rename only exists from Gateway 5.x (2025.1.x / Boot 4) onwards.
+		     The configuration prefix (spring.cloud.gateway.server.webmvc.*) is the same either way. -->
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-gateway-mvc</artifactId>
+		</dependency>
+
+		<!-- Routes target a service-id (lb://booking-service), not a fixed host:port, so the gateway keeps
+		     working if an instance moves. -->
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
+		</dependency>
+
+		<!-- Distributed tracing — see booking-service's pom for what each of these three does. Every trace
+		     begins at the gateway. -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-actuator</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>io.micrometer</groupId>
+			<artifactId>micrometer-tracing-bridge-otel</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>io.opentelemetry</groupId>
+			<artifactId>opentelemetry-exporter-zipkin</artifactId>
+		</dependency>
+	</dependencies>
+
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-maven-plugin</artifactId>
+			</plugin>
+		</plugins>
+	</build>
+
+</project>

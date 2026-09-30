@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+	<groupId>com.jeysiva</groupId>
+	<artifactId>trip-booking-platform</artifactId>
+	<version>0.0.1-SNAPSHOT</version>
+
+	<!--
+	  Aggregator for the whole platform. packaging=pom means this builds nothing itself; it exists so that
+	  (a) one command builds/tests every service:      ./mvnw test
+	  (b) one service can be targeted by module name:  ./mvnw -pl booking-service spring-boot:run
+	  (c) IDEs import ALL services from the root pom instead of silently ignoring the nested ones.
+
+	  Aggregation only, no inheritance: each service keeps spring-boot-starter-parent as its own parent and
+	  stays independently buildable — which is the point of them being separate services. Every new service
+	  is one <module> line here.
+	-->
+	<packaging>pom</packaging>
+	<name>trip-booking-platform</name>
+	<description>Mini travel-booking platform: aggregator for all services</description>
+
+	<modules>
+		<module>discovery-service</module>
+		<module>gateway-service</module>
+		<module>booking-service</module>
+		<module>payment-service</module>
+	</modules>
+
+</project>

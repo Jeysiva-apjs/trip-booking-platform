@@ -1,0 +1,714 @@
+{
+  "info": {
+    "name": "Trip Booking Platform API",
+    "description": "Mini travel-booking platform \u2014 a Trip = one flight seat + one hotel room.\n\nNO AUTHENTICATION: every endpoint is open. A trip's owner is the {{userId}} sent in the request body.\n{{userId}} defaults to 2 (the seeded 'demo' account) \u2014 check the booking-service startup log for the\nactual seeded ids.\n\nSETUP: MySQL :3306, Kafka :9092, then from the repo root:\n  ./mvnw -pl payment-service spring-boot:run   (:8081)\n  ./mvnw -pl booking-service spring-boot:run   (:8080)\n\nBooking is ASYNC. 'Book trip' returns 202 PENDING and publishes a Kafka event; the payment\nservice charges and replies, and booking settles the trip to CONFIRMED (or CANCELLED if declined).\nPoll 'Get trip by id' after booking. To see compensation, run booking with --booking.trip-price=100000\n(payment declines >= 100000) and watch the trip go CANCELLED with the seat + room released.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8090"
+    },
+    {
+      "key": "flightId",
+      "value": ""
+    },
+    {
+      "key": "seatId",
+      "value": ""
+    },
+    {
+      "key": "hotelId",
+      "value": ""
+    },
+    {
+      "key": "roomId",
+      "value": ""
+    },
+    {
+      "key": "tripId",
+      "value": ""
+    },
+    {
+      "key": "paymentUrl",
+      "value": "http://localhost:8081"
+    },
+    {
+      "key": "paymentId",
+      "value": ""
+    },
+    {
+      "key": "seatId2",
+      "value": ""
+    },
+    {
+      "key": "roomId2",
+      "value": ""
+    },
+    {
+      "key": "gatewayUrl",
+      "value": "http://localhost:8090"
+    },
+    {
+      "key": "zipkinUrl",
+      "value": "http://localhost:9411"
+    },
+    {
+      "key": "directBookingUrl",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "userId",
+      "value": "2"
+    }
+  ],
+  "item": [
+    {
+      "name": "Flights",
+      "item": [
+        {
+          "name": "Create flight",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('flightId', json.id);",
+                  "pm.collectionVariables.set('seatId', json.seats[0].id);",
+                  "pm.collectionVariables.set('seatId2', json.seats[1].id);   // spare seat for the manual scenarios",
+                  "pm.test('has generated seats', () => pm.expect(json.seats.length).to.be.above(1));",
+                  "console.log('flightId=' + json.id + '  seatId=' + json.seats[0].id + '  seatId2=' + json.seats[1].id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"flightNumber\": \"AI-202\",\n  \"origin\": \"BLR\",\n  \"destination\": \"DXB\",\n  \"departureTime\": \"2030-01-15T09:30:00\",\n  \"seatCount\": 6\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/flights",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "flights"
+              ]
+            }
+          }
+        },
+        {
+          "name": "List flights",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/flights",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "flights"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get flight by id",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/flights/{{flightId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "flights",
+                "{{flightId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get flight seats",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/flights/{{flightId}}/seats",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "flights",
+                "{{flightId}}",
+                "seats"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Hotels",
+      "item": [
+        {
+          "name": "Create hotel",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('hotelId', json.id);",
+                  "pm.collectionVariables.set('roomId', json.rooms[0].id);",
+                  "pm.collectionVariables.set('roomId2', json.rooms[1].id);   // spare room for the manual scenarios",
+                  "pm.test('has generated rooms', () => pm.expect(json.rooms.length).to.be.above(1));",
+                  "console.log('hotelId=' + json.id + '  roomId=' + json.rooms[0].id + '  roomId2=' + json.rooms[1].id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Burj Al Arab\",\n  \"location\": \"Dubai\",\n  \"roomCount\": 4\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/hotels",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "hotels"
+              ]
+            }
+          }
+        },
+        {
+          "name": "List hotels",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/hotels",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "hotels"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get hotel by id",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/hotels/{{hotelId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "hotels",
+                "{{hotelId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get hotel rooms",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/hotels/{{hotelId}}/rooms",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "hotels",
+                "{{hotelId}}",
+                "rooms"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Trips",
+      "item": [
+        {
+          "name": "Book trip (async saga -> 202 PENDING)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('202 Accepted', () => pm.response.to.have.status(202));",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('tripId', json.id);",
+                  "pm.test('starts PENDING', () => pm.expect(json.status).to.eql('PENDING'));",
+                  "console.log('trip ' + json.id + ' PENDING \u2014 poll GET /api/trips/'+json.id+' until CONFIRMED');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"seatId\": {{seatId}},\n  \"roomId\": {{roomId}},\n  \"userId\": {{userId}}\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/trips",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "trips"
+              ]
+            },
+            "description": "Publishes a PaymentRequested event and returns 202 PENDING immediately. The payment service charges asynchronously; poll 'Get trip by id' until status becomes CONFIRMED (or CANCELLED if payment declined).\n\nThe owner is the {{userId}} in the body \u2014 client-supplied and unverified, since the platform has no authentication."
+          }
+        },
+        {
+          "name": "List trips",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/trips",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "trips"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get trip by id",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "console.log('trip status: ' + pm.response.json().status + ' (re-send until CONFIRMED)');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/trips/{{tripId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "trips",
+                "{{tripId}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Error scenarios",
+      "item": [
+        {
+          "name": "Double-book same seat -> 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Precondition: {{seatId}} was already reserved by 'Book trip'.",
+                  "pm.test('409 Conflict', () => pm.response.to.have.status(409));",
+                  "pm.test('body explains the conflict', () => pm.expect(pm.response.json().message).to.include('not available'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"seatId\": {{seatId}},\n  \"roomId\": {{roomId}},\n  \"userId\": {{userId}}\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/trips",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "trips"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Invalid flight body -> 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+                  "pm.test('reports field errors', () => pm.expect(pm.response.json().message).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"flightNumber\": \"\",\n  \"origin\": \"BLR\",\n  \"destination\": \"SIN\",\n  \"departureTime\": \"2030-01-01T10:00:00\",\n  \"seatCount\": 0\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/flights",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "flights"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Unknown trip -> 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404 Not Found', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/trips/999999",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "trips",
+                "999999"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Payment service (read-only, :8081)",
+      "description": "Charging is driven by the saga (Kafka), not REST. These GETs verify a recorded payment.\n\nThese hit :8081 DIRECTLY, bypassing the gateway \u2014 and nothing stops them: payment-service has no authentication, so reaching the port is all it takes.",
+      "item": [
+        {
+          "name": "Look up payment by id",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('same payment returned', () => pm.expect(pm.response.json().paymentId).to.eql(pm.collectionVariables.get('paymentId')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{paymentUrl}}/api/payments/{{paymentId}}",
+              "host": [
+                "{{paymentUrl}}"
+              ],
+              "path": [
+                "api",
+                "payments",
+                "{{paymentId}}"
+              ]
+            },
+            "description": "Proves the payment is durable, not just a log line. Run a booking first to capture {{paymentId}}. No authentication \u2014 this bypasses the gateway and payment-service does not check callers."
+          }
+        },
+        {
+          "name": "List payments by booking reference",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{paymentUrl}}/api/payments?tripReference=manual-test-1",
+              "host": [
+                "{{paymentUrl}}"
+              ],
+              "path": [
+                "api",
+                "payments"
+              ],
+              "query": [
+                {
+                  "key": "tripReference",
+                  "value": "manual-test-1"
+                }
+              ]
+            },
+            "description": "All attempts for one booking reference, newest first - reconciliation/support view.\n\nNOTE: anyone can read any tripReference. payment-service stores a tripReference, not a userId, so it cannot tell whose payment a row is without asking booking-service."
+          }
+        },
+        {
+          "name": "Unknown payment id -> 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404 Not Found', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{paymentUrl}}/api/payments/does-not-exist",
+              "host": [
+                "{{paymentUrl}}"
+              ],
+              "path": [
+                "api",
+                "payments",
+                "does-not-exist"
+              ]
+            },
+            "description": "404 for an id that does not exist. Nothing is authenticated, so this is the only failure mode."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Cleanup",
+      "description": "Run last: releases the seat and room the main flow reserved, so the collection can be re-run.",
+      "item": [
+        {
+          "name": "Cancel trip (release seat + room)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('status is CANCELLED', () => pm.expect(pm.response.json().status).to.eql('CANCELLED'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/trips/{{tripId}}/cancel",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "trips",
+                "{{tripId}}",
+                "cancel"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Direct to booking-service (bypass gateway, for comparison)",
+      "description": "Everything else in this collection goes through the gateway ({{baseUrl}} = :8090), which is what keeps Zipkin traces rooted at a gateway span. This folder is the deliberate exception: it hits booking-service on {{directBookingUrl}} (:8080) directly, so you can compare the response to the same request through the gateway and confirm they're identical.",
+      "item": [
+        {
+          "name": "List flights (direct, bypasses gateway)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{directBookingUrl}}/api/flights",
+              "host": [
+                "{{directBookingUrl}}"
+              ],
+              "path": [
+                "api",
+                "flights"
+              ]
+            },
+            "description": "Compare this response to 'Flights > List flights', which now goes through the gateway. Same data, same shape -- the gateway adds routing, not behavior."
+          }
+        }
+      ]
+    }
+  ]
+}
